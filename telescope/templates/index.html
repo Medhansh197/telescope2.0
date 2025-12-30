@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Telescope Viewing Conditions - Beluwakhan</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        #stars-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .telescope-icon {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 60px;
+            opacity: 0.3;
+            z-index: -1;
+            animation: point 4s ease-in-out infinite;
+        }
+        
+        @keyframes point {
+            0%, 100% { transform: rotate(-10deg); }
+            50% { transform: rotate(10deg); }
+        }
+        
+        .container { max-width: 1000px; margin: 0 auto; position: relative; z-index: 1; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #ff8c00; font-size: 2.5em; text-shadow: 0 0 10px #ff8c00; }
+        .header h2 { color: #32cd32; }
+        
+        .weather-card, .prediction-card { 
+            background: rgba(40, 40, 40, 0.9); 
+            padding: 20px; 
+            margin: 20px 0; 
+            border-radius: 15px; 
+            border: 1px solid #666;
+            backdrop-filter: blur(10px);
+        }
+        
+        .weather-card h3 { color: #ff8c00; font-size: 1.4em; }
+        
+        .score { 
+            font-size: 48px; 
+            font-weight: bold; 
+            text-align: center; 
+            margin: 20px 0; 
+            text-shadow: 0 0 20px currentColor;
+        }
+        
+        .factors { list-style: none; padding: 0; }
+        .factors li { padding: 5px 0; color: #32cd32; }
+        
+        .excellent { color: #32cd32; }
+        .good { color: #ff8c00; }
+        .poor { color: #ff4444; }
+        
+        .refresh-btn { 
+            background: linear-gradient(45deg, #666, #999); 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .refresh-btn:hover { transform: scale(1.05); box-shadow: 0 0 15px #32cd32; }
+        
+        .weather-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 15px; 
+        }
+        
+        .weather-item { 
+            text-align: center; 
+            background: rgba(20, 20, 20, 0.8); 
+            padding: 15px; 
+            border-radius: 10px; 
+            border: 1px solid #444;
+            color: #32cd32;
+        }
+        
+        .data-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 15px 0; 
+            background: rgba(20, 20, 20, 0.8);
+        }
+        
+        .data-table th, .data-table td { 
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #444; 
+        }
+        
+        .data-table th { 
+            background: rgba(40, 40, 40, 0.9); 
+            color: #ff8c00; 
+            font-weight: bold; 
+        }
+        
+        .data-table td { color: #32cd32; }
+        .data-table tr:hover { background: rgba(50, 50, 50, 0.5); }
+        
+        .table-container { overflow-x: auto; border-radius: 10px; }
+        
+        select { 
+            margin: 10px; 
+            padding: 8px; 
+            background: rgba(40, 40, 40, 0.9); 
+            color: #32cd32; 
+            border: 1px solid #666; 
+            border-radius: 8px; 
+        }
+    </style>
+</head>
+<body>
+    <canvas id="stars-canvas"></canvas>
+    <div class="telescope-icon">🔭</div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>🔭 Telescope Viewing Conditions</h1>
+            <h2 id="location-name">Beluwakhan, Uttarakhand</h2>
+            <select id="location-select" onchange="changeLocation()">
+                <option value="beluwakhan">Beluwakhan</option>
+                <option value="nainital">Nainital</option>
+                <option value="delhi">Delhi</option>
+                <option value="mumbai">Mumbai</option>
+            </select>
+            <button class="refresh-btn" onclick="loadData()">Refresh Data</button>
+            <button class="refresh-btn" onclick="exportData()" style="margin-left: 10px;">Export CSV</button>
+        </div>
+
+        <div class="weather-card">
+            <h3>Current Weather</h3>
+            <div id="current-time" style="text-align: center; color: #ff8c00; margin-bottom: 15px;">Loading...</div>
+            <div class="weather-grid" id="weather-data">Loading...</div>
+        </div>
+        
+        <div class="weather-card">
+            <h3>Today's Weather Summary</h3>
+            <div class="weather-grid" id="today-summary">Loading...</div>
+        </div>
+
+        <div class="prediction-card">
+            <h3>Telescope Viewing Prediction</h3>
+            <div class="score" id="prediction-score">--</div>
+            <div id="recommendation">Loading...</div>
+            <ul class="factors" id="factors-list"></ul>
+        </div>
+
+        <div class="weather-card">
+            <h3>📊 5-Day Forecast</h3>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Min/Max Temp</th>
+                            <th>Humidity</th>
+                            <th>Wind Speed</th>
+                            <th>Conditions</th>
+                            <th>Cloud Cover</th>
+                            <th>Telescope Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forecast-data">
+                        <tr><td colspan="6">Loading forecast...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="weather-card">
+            <h3>💾 Saved Weather Data</h3>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Location</th>
+                            <th>Temperature (°C)</th>
+                            <th>Humidity (%)</th>
+                            <th>Wind Speed (m/s)</th>
+                            <th>Pressure (hPa)</th>
+                            <th>Visibility</th>
+                            <th>Cloud Cover</th>
+                        </tr>
+                    </thead>
+                    <tbody id="saved-weather-data">
+                        <tr><td colspan="8">Loading saved data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="weather-card">
+            <h3>📈 Historical Data Analysis (2019)</h3>
+            <div class="weather-grid" id="past-data">Loading...</div>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date (2019)</th>
+                            <th>Temperature (°C)</th>
+                            <th>Humidity (%)</th>
+                            <th>Wind Speed (m/s)</th>
+                            <th>Pressure (hPa)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historical-data">
+                        <tr><td colspan="5">Loading historical data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="weather-card">
+            <h3>🔭 Ideal Telescope Viewing Conditions</h3>
+            <div class="weather-grid">
+                <div class="weather-item">
+                    <div>Temperature</div>
+                    <div><strong>5°C to 20°C</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>Humidity</div>
+                    <div><strong>&lt; 70%</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>Wind Speed</div>
+                    <div><strong>&lt; 3 m/s</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>Atmospheric Pressure</div>
+                    <div><strong>&gt; 960 hPa</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>Cloud Cover</div>
+                    <div><strong>Clear Skies (&lt;20%)</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>Visibility</div>
+                    <div><strong>&gt; 10 km</strong></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="weather-card">
+            <h3>🌙 Today's Hourly Conditions</h3>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Temperature</th>
+                            <th>Humidity</th>
+                            <th>Wind Speed</th>
+                            <th>Conditions</th>
+                            <th>Telescope Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hourly-data">
+                        <tr><td colspan="6">Loading hourly data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('stars-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const stars = [];
+        const numStars = 200;
+        
+        for (let i = 0; i < numStars; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                z: Math.random() * 1000,
+                speed: Math.random() * 2 + 0.5
+            });
+        }
+        
+        function animateStars() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            stars.forEach(star => {
+                star.z -= star.speed;
+                if (star.z <= 0) {
+                    star.z = 1000;
+                    star.x = Math.random() * canvas.width;
+                    star.y = Math.random() * canvas.height;
+                }
+                
+                const x = (star.x - canvas.width / 2) * (1000 / star.z) + canvas.width / 2;
+                const y = (star.y - canvas.height / 2) * (1000 / star.z) + canvas.height / 2;
+                const size = (1000 - star.z) / 1000 * 3;
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${(1000 - star.z) / 1000})`;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            requestAnimationFrame(animateStars);
+        }
+        
+        animateStars();
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        let currentLocation = 'beluwakhan';
+        
+        function changeLocation() {
+            currentLocation = document.getElementById('location-select').value;
+            const locationNames = {
+                'beluwakhan': 'Beluwakhan, Uttarakhand',
+                'nainital': 'Nainital, Uttarakhand', 
+                'delhi': 'Delhi, India',
+                'mumbai': 'Mumbai, India'
+            };
+            document.getElementById('location-name').textContent = locationNames[currentLocation];
+            loadData();
+        }
+        
+        function loadData() {
+            document.getElementById('current-time').innerHTML = 'Loading...';
+            document.getElementById('weather-data').innerHTML = 'Loading...';
+            
+            fetch(`/api/telescope-conditions/${currentLocation}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    updateWeather(data.weather);
+                    updatePrediction(data.prediction);
+                    updatePastData(data.past_data);
+                    updateForecast(data.forecast, data.forecast_predictions);
+                    updateHourlyData(data.hourly_today, data.hourly_predictions);
+                    updateHistoricalRecords(data.historical_records);
+                    updateSavedWeatherData(data.saved_weather_data);
+                    document.getElementById('location-name').textContent = data.weather.location;
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    document.getElementById('current-time').innerHTML = 'Error loading data';
+                });
+        }
+
+        // Live clock function
+        function updateLiveClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const dateString = now.toLocaleDateString();
+            
+            const clockElement = document.getElementById('live-clock');
+            if (clockElement) {
+                clockElement.innerHTML = `📅 ${dateString} | ⏰ ${timeString}`;
+            }
+        }
+        
+        // Start live clock
+        setInterval(updateLiveClock, 1000);
+        updateLiveClock();
+
+        function updateWeather(weather) {
+            const currentTime = new Date(weather.current_time);
+            document.getElementById('current-time').innerHTML = `
+                <div id="live-clock" style="font-size: 1.2em; margin-bottom: 10px;">📅 ${new Date().toLocaleDateString()} | ⏰ ${new Date().toLocaleTimeString()}</div>
+                <strong>API Time: ${currentTime.toLocaleDateString()} | ${currentTime.toLocaleTimeString()}</strong><br>
+                <small>Source: ${weather.api_source || 'AccuWeather API'} | Conditions: ${weather.weather_text} | UV: ${weather.uv_index || 'N/A'}</small>
+            `;
+            
+            document.getElementById('weather-data').innerHTML = `
+                <div class="weather-item">
+                    <div>🌡️ Temperature</div>
+                    <div><strong>${weather.temperature}°C</strong><br><small>Feels like ${weather.feels_like}°C</small></div>
+                </div>
+                <div class="weather-item">
+                    <div>💧 Humidity</div>
+                    <div><strong>${weather.humidity}%</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>💨 Wind</div>
+                    <div><strong>${weather.wind_speed} m/s</strong><br><small>${weather.wind_direction}</small></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌊 Pressure</div>
+                    <div><strong>${weather.pressure} hPa</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>👁️ Visibility</div>
+                    <div><strong>${weather.visibility} km</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>☁️ Cloud Cover</div>
+                    <div><strong>${weather.cloud_cover}%</strong></div>
+                </div>
+            `;
+            
+            document.getElementById('today-summary').innerHTML = `
+                <div class="weather-item">
+                    <div>🌡️ Today's Range</div>
+                    <div><strong>${weather.today_min_temp}°C / ${weather.today_max_temp}°C</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>☀️ Day Conditions</div>
+                    <div><strong>${weather.today_day_conditions}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌙 Night Conditions</div>
+                    <div><strong>${weather.today_night_conditions}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌅 Sunrise</div>
+                    <div><strong>${weather.sunrise}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌇 Sunset</div>
+                    <div><strong>${weather.sunset}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌙 Moon Phase</div>
+                    <div><strong>${weather.moon_phase}</strong></div>
+                </div>
+            `;
+        }
+
+        function updatePrediction(prediction) {
+            const scoreElement = document.getElementById('prediction-score');
+            const recommendationElement = document.getElementById('recommendation');
+            const factorsElement = document.getElementById('factors-list');
+
+            scoreElement.textContent = prediction.score + '/100';
+            scoreElement.className = 'score ' + prediction.recommendation.toLowerCase();
+            
+            const emoji = prediction.recommendation === 'Excellent' ? '🌟' : 
+                         prediction.recommendation === 'Good' ? '👍' : '⚠️';
+            
+            recommendationElement.innerHTML = `<h4 class="${prediction.recommendation.toLowerCase()}">${emoji} Viewing Conditions: ${prediction.recommendation}</h4>`;
+            
+            factorsElement.innerHTML = prediction.factors.map(factor => `<li>${factor}</li>`).join('');
+        }
+        
+        function updatePastData(pastData) {
+            document.getElementById('past-data').innerHTML = `
+                <div class="weather-item">
+                    <div>📊 Total Records</div>
+                    <div><strong>${pastData.total_records.toLocaleString()}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>⭐ Optimal Days</div>
+                    <div><strong>${pastData.optimal_days.toLocaleString()}</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>📈 Success Rate</div>
+                    <div><strong>${pastData.optimal_percentage}%</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>🌡️ Avg Temperature</div>
+                    <div><strong>${pastData.avg_temp}°C</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>💧 Avg Humidity</div>
+                    <div><strong>${pastData.avg_humidity}%</strong></div>
+                </div>
+                <div class="weather-item">
+                    <div>💨 Avg Wind Speed</div>
+                    <div><strong>${pastData.avg_wind} m/s</strong></div>
+                </div>
+            `;
+        }
+        
+        function updateForecast(forecast, predictions) {
+            if (!forecast || forecast.length === 0) {
+                document.getElementById('forecast-data').innerHTML = '<tr><td colspan="7">No forecast data available</td></tr>';
+                return;
+            }
+            
+            const forecastRows = forecast.map((day, index) => {
+                const prediction = predictions && predictions[index] ? predictions[index] : {score: 0, recommendation: 'Unknown'};
+                const scoreClass = prediction.recommendation.toLowerCase();
+                
+                return `
+                    <tr>
+                        <td>${new Date(day.date).toLocaleDateString()}</td>
+                        <td>${day.min_temp}°C / ${day.max_temp}°C</td>
+                        <td>${day.humidity}%</td>
+                        <td>${day.wind_speed.toFixed(1)} m/s</td>
+                        <td>${day.conditions}</td>
+                        <td>${day.cloud_cover}%</td>
+                        <td><span class="${scoreClass}">${prediction.score}/100 (${prediction.recommendation})</span></td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('forecast-data').innerHTML = forecastRows;
+        }
+        
+        function updateHourlyData(hourlyData, hourlyPredictions) {
+            if (!hourlyData || hourlyData.length === 0) {
+                document.getElementById('hourly-data').innerHTML = '<tr><td colspan="6">No hourly data available</td></tr>';
+                return;
+            }
+            
+            const hourlyRows = hourlyData.map((hour, index) => {
+                const prediction = hourlyPredictions && hourlyPredictions[index] ? hourlyPredictions[index] : {score: 0, recommendation: 'Unknown'};
+                const scoreClass = prediction.recommendation.toLowerCase();
+                
+                return `
+                    <tr>
+                        <td>${hour.time}</td>
+                        <td>${hour.temperature}°C</td>
+                        <td>${hour.humidity}%</td>
+                        <td>${hour.wind_speed.toFixed(1)} m/s</td>
+                        <td>${hour.conditions}</td>
+                        <td><span class="${scoreClass}">${prediction.score}/100</span></td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('hourly-data').innerHTML = hourlyRows;
+        }
+        
+        function updateHistoricalRecords(records) {
+            if (!records || records.length === 0) {
+                document.getElementById('historical-data').innerHTML = '<tr><td colspan="5">No historical data for this date</td></tr>';
+                return;
+            }
+            
+            const recordRows = records.map(record => `
+                <tr>
+                    <td>${record.date}</td>
+                    <td>${record.temp}°C</td>
+                    <td>${record.humidity}%</td>
+                    <td>${record.wind} m/s</td>
+                    <td>${record.pressure} hPa</td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('historical-data').innerHTML = recordRows;
+        }
+        
+        function updateSavedWeatherData(savedData) {
+            if (!savedData || savedData.length === 0) {
+                document.getElementById('saved-weather-data').innerHTML = '<tr><td colspan="8">No saved weather data available</td></tr>';
+                return;
+            }
+            
+            const savedRows = savedData.map(record => `
+                <tr>
+                    <td>${record.datetime}</td>
+                    <td>${record.location}</td>
+                    <td>${record.temperature}°C</td>
+                    <td>${record.humidity}%</td>
+                    <td>${typeof record.wind_speed === 'number' ? record.wind_speed.toFixed(1) : record.wind_speed} m/s</td>
+                    <td>${record.pressure} hPa</td>
+                    <td>${record.visibility} km</td>
+                    <td>${record.cloud_cover}%</td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('saved-weather-data').innerHTML = savedRows;
+        }
+
+        loadData();
+        setInterval(loadData, 300000);
+        
+        // Update live clock immediately after page load
+        setTimeout(updateLiveClock, 100);
+        
+        function exportData() {
+            window.open('/export/weather-data', '_blank');
+        }
+    </script>
+</body>
+</html>
