@@ -1,5 +1,8 @@
 from flask import Flask, render_template, jsonify, Response
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    CORS = None
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
@@ -9,7 +12,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+if CORS:
+    CORS(app)
 
 ACCUWEATHER_API_KEY = os.getenv('ACCUWEATHER_API_KEY')
 
@@ -749,4 +753,5 @@ def export_stats():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
