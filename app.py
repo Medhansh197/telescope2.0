@@ -19,22 +19,23 @@ def get_weather_data(location='beluwakhan'):
     loc_data = LOCATIONS.get(location, LOCATIONS['beluwakhan'])
     current_hour = datetime.now().hour
     temp_modifier = random.uniform(0, 4) if 6 <= current_hour <= 18 else random.uniform(-4, 0)
+    base_temp = loc_data['temp'] + temp_modifier
     
     return {
         'location': loc_data['name'],
         'current_time': datetime.now().isoformat(),
-        'temperature': round(loc_data['temp'] + temp_modifier, 1),
-        'feels_like': round(loc_data['temp'] + temp_modifier + random.uniform(-2, 2), 1),
+        'temperature': round(base_temp, 1),
+        'feels_like': round(base_temp + random.uniform(-2, 2), 1),
         'humidity': max(20, min(90, loc_data['humidity'] + random.randint(-10, 10))),
-        'wind_speed': round(loc_data['wind'] + random.uniform(-0.8, 0.8), 1),
+        'wind_speed': round(max(0, loc_data['wind'] + random.uniform(-0.8, 0.8)), 1),
         'wind_direction': random.choice(['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']),
         'pressure': round(loc_data['pressure'] + random.uniform(-3, 3), 1),
         'visibility': random.choice([8, 10, 12, 15]),
         'cloud_cover': random.randint(0, 60),
         'weather_text': random.choice(['Clear', 'Partly Cloudy', 'Fair']),
         'uv_index': max(0, min(10, random.randint(0, 8) if 6 <= current_hour <= 18 else 0)),
-        'today_min_temp': round(loc_data['temp'] + temp_modifier - 6, 1),
-        'today_max_temp': round(loc_data['temp'] + temp_modifier + 4, 1),
+        'today_min_temp': round(base_temp - 6, 1),
+        'today_max_temp': round(base_temp + 4, 1),
         'today_day_conditions': random.choice(['Fair', 'Partly Cloudy', 'Mostly Sunny']),
         'today_night_conditions': random.choice(['Clear', 'Partly Cloudy', 'Fair']),
         'sunrise': '06:30',
@@ -108,14 +109,14 @@ def get_past_data():
 
 def get_hourly_data(location='beluwakhan'):
     hourly = []
+    base_weather = get_weather_data(location)
     for i in range(8):
         hour_time = (datetime.now() + timedelta(hours=i)).strftime('%H:%M')
-        weather = get_weather_data(location)
         hourly.append({
             'time': hour_time,
-            'temperature': weather['temperature'] + random.uniform(-2, 2),
-            'humidity': weather['humidity'] + random.randint(-5, 5),
-            'wind_speed': weather['wind_speed'] + random.uniform(-0.5, 0.5),
+            'temperature': round(base_weather['temperature'] + random.uniform(-2, 2), 1),
+            'humidity': max(20, min(90, base_weather['humidity'] + random.randint(-5, 5))),
+            'wind_speed': round(max(0, base_weather['wind_speed'] + random.uniform(-0.5, 0.5)), 1),
             'conditions': random.choice(['Clear', 'Fair', 'Partly Cloudy']),
             'cloud_cover': random.randint(0, 40)
         })
